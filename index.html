@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智慧教室座位表生成器 (強力版)</title>
+    <title>智慧教室座位表生成器 (雲端同步版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -11,50 +11,35 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <!-- 動態列印樣式 (由 JS 控制) -->
     <style id="dynamic-print-style">
-        @media print {
-            @page { size: A4 portrait; margin: 5mm; }
-        }
+        @media print { @page { size: A4 portrait; margin: 5mm; } }
     </style>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
-        
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
 
         .seat-card {
             transition: all 0.2s ease;
             user-select: none;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
         }
         .seat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .seat-card.dragging { opacity: 0.5; border: 2px dashed #3b82f6; }
 
-        /* 特殊狀態樣式 */
-        .seat-card.is-fixed { border: 3px solid #f59e0b !important; background-color: #fffbeb !important; } /* 黃色：固定第一排 */
-        .seat-card.is-separate { border: 3px solid #ef4444 !important; background-color: #fef2f2 !important; } /* 紅色：互斥/聊天 */
-        .seat-card.is-pair { border: 3px solid #10b981 !important; background-color: #ecfdf5 !important; } /* 綠色：綁定 */
+        .seat-card.is-fixed { border: 3px solid #f59e0b !important; background-color: #fffbeb !important; } 
+        .seat-card.is-separate { border: 3px solid #ef4444 !important; background-color: #fef2f2 !important; } 
+        .seat-card.is-pair { border: 3px solid #10b981 !important; background-color: #ecfdf5 !important; } 
         
-        /* 視角與動畫 */
         #classroom-area, #info-header { transition: transform 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
         #classroom-area { 
             transform-origin: center center; 
-            display: flex; 
-            flex-direction: column; 
-            /* 預設直式模擬 A4 比例 */
-            width: 100%;
-            max-width: 210mm; 
-            min-height: 297mm;
-            margin: 0 auto; 
-            background-color: white;
+            display: flex; flex-direction: column; 
+            width: 100%; max-width: 210mm; min-height: 297mm;
+            margin: 0 auto; background-color: white;
         }
         
-        /* 老師視角 (預設) */
         #classroom-area:not(.student-view-mode) #info-header { transform: rotate(0deg); }
-        
-        /* 學生視角 */
         .student-view-mode { transform: rotate(180deg); }
         .student-view-mode #info-header,
         .student-view-mode .seat-content, 
@@ -62,87 +47,52 @@
 
         #markdown-print-view { display: none; }
 
-        /* 列印通用設定 - 強制一頁 */
+        /* 列印通用設定 */
         @media print {
             body * { visibility: hidden; }
             #markdown-print-view, #markdown-print-view * { visibility: visible; }
-            
-            html, body {
-                height: 100%;
-                overflow: hidden; /* 防止捲軸導致多頁 */
-                margin: 0;
-                padding: 0;
-            }
-
+            html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
             main { display: none; }
-
             #markdown-print-view {
-                display: flex; 
-                flex-direction: column; 
-                position: absolute; 
-                left: 0; 
-                top: 0; 
-                width: 100%; 
-                height: 100vh; /* 佔滿視窗高度 */
-                background: white; 
-                color: black; 
-                font-family: 'Noto Sans TC', serif; 
-                justify-content: flex-start; 
-                align-items: center;
-                padding: 5mm;
-                box-sizing: border-box;
+                display: flex; flex-direction: column; position: absolute; left: 0; top: 0; width: 100%; height: 100vh;
+                background: white; color: black; font-family: 'Noto Sans TC', serif; justify-content: flex-start; align-items: center; padding: 5mm; box-sizing: border-box;
             }
-
             .md-h1 { font-size: 20pt; font-weight: bold; text-align: center; margin-bottom: 2mm; border-bottom: 2px solid #000; width: 100%; }
             .md-meta { font-size: 10pt; margin-bottom: 3mm; text-align: center; width: 100%; }
-            
-            .md-table { 
-                width: 100%; 
-                border-collapse: collapse; 
-                table-layout: fixed; 
-                flex-grow: 1; /* 自動填滿剩餘空間 */
-                margin-bottom: 2mm;
-            }
-            
-            .md-table th, .md-table td { 
-                border: 1px solid #000; 
-                padding: 0; 
-                text-align: center; 
-                vertical-align: middle; 
-                overflow: hidden;
-            }
-            
+            .md-table { width: 100%; border-collapse: collapse; table-layout: fixed; flex-grow: 1; margin-bottom: 2mm; }
+            .md-table th, .md-table td { border: 1px solid #000; padding: 0; text-align: center; vertical-align: middle; overflow: hidden; }
             .md-seat-id { font-size: 9pt; font-weight: bold; display: block; line-height: 1.1; }
-            /* 列印時名字大一點，但不要撐破 */
             .md-seat-name { font-size: 16pt; font-weight: bold; display: block; white-space: nowrap; overflow: hidden; line-height: 1.2; text-overflow: ellipsis; }
-            
-            .md-desk { 
-                border: 2px solid #000; 
-                text-align: center; 
-                padding: 2mm; 
-                width: 50%; 
-                background-color: #f0f0f0 !important; 
-                flex-shrink: 0; 
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-            
-            /* 隱藏網頁按鈕 */
+            .md-desk { border: 2px solid #000; text-align: center; padding: 2mm; width: 50%; background-color: #f0f0f0 !important; flex-shrink: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .no-print { display: none !important; }
         }
     </style>
 </head>
-<body class="h-screen flex flex-col md:flex-row overflow-hidden">
+<body class="h-screen flex flex-col md:flex-row overflow-hidden relative">
+
+    <!-- 載入中遮罩 -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-white/90 z-50 flex flex-col justify-center items-center hidden">
+        <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
+        <h2 class="text-xl text-gray-700 font-bold" id="loadingText">雲端資料同步中...</h2>
+    </div>
 
     <div id="markdown-print-view"></div>
 
     <aside class="w-full md:w-1/4 bg-white shadow-lg overflow-y-auto z-20 no-print flex flex-col border-r border-gray-200">
         <div class="p-5 bg-blue-600 text-white">
             <h1 class="text-xl font-bold"><i class="fa-solid fa-graduation-cap mr-2"></i>座位表生成器</h1>
-            <p class="text-xs opacity-80 mt-1">拖拉交換 • 智慧排位 • Excel 匯出</p>
+            <p class="text-xs opacity-80 mt-1">拖拉交換 • 智慧排位 • 雲端同步</p>
         </div>
 
         <div class="p-4 space-y-6 flex-1">
+            <!-- 雲端讀取區塊 (新增) -->
+            <div class="space-y-2 bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+                <label class="text-xs font-semibold text-emerald-700 block"><i class="fa-solid fa-cloud-arrow-down mr-1"></i> 從雲端載入紀錄</label>
+                <select id="cloudClassSelect" onchange="loadFromCloud(this.value)" class="border p-2 rounded text-sm w-full bg-white text-gray-700">
+                    <option value="">-- 請選擇班級紀錄 --</option>
+                </select>
+            </div>
+
             <div class="space-y-3">
                 <h3 class="font-bold text-gray-700 border-b pb-1">1. 基本資訊與名單</h3>
                 <div class="grid grid-cols-2 gap-2">
@@ -153,7 +103,7 @@
                     </select>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
-                    <input type="text" id="className" placeholder="班級名稱" class="border p-2 rounded text-sm w-full">
+                    <input type="text" id="className" placeholder="班級名稱 (必填)" class="border p-2 rounded text-sm w-full border-blue-300">
                     <input type="text" id="teacherName" placeholder="老師姓名" class="border p-2 rounded text-sm w-full">
                 </div>
                 <div class="flex gap-2">
@@ -162,7 +112,7 @@
                         <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden">
                     </label>
                 </div>
-                <textarea id="studentInput" rows="5" placeholder="在此貼上名單...&#10;格式範例：&#10;1 王小明&#10;2 李大同" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-blue-300 outline-none"></textarea>
+                <textarea id="studentInput" rows="4" placeholder="在此貼上名單...&#10;1 王小明&#10;2 李大同" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-blue-300 outline-none"></textarea>
                 <div class="text-xs text-gray-500 text-right">目前人數: <span id="studentCount">0</span> 人</div>
             </div>
 
@@ -177,7 +127,6 @@
 
             <div class="space-y-3">
                 <h3 class="font-bold text-gray-700 border-b pb-1">3. 強制排位限制</h3>
-                <p class="text-xs text-red-500 font-bold">* 請輸入準確的「座號」</p>
                 <div>
                     <label class="text-xs font-semibold text-blue-600 block mb-1">一定要坐第一排 (橘框)</label>
                     <input type="text" id="fixedFrontInput" placeholder="例: 1, 5, 12" class="border p-2 rounded text-sm w-full border-blue-300">
@@ -194,7 +143,11 @@
 
             <div class="pt-4 space-y-2">
                 <button onclick="generateRandomSeat()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg shadow font-bold text-lg transition flex items-center justify-center"><i class="fa-solid fa-shuffle mr-2"></i> 強力運算分配</button>
-                <div class="grid grid-cols-2 gap-2">
+                
+                <!-- 儲存至雲端按鈕 (新增) -->
+                <button onclick="saveToCloud()" id="btnSaveCloud" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg shadow font-bold text-lg transition flex items-center justify-center"><i class="fa-solid fa-cloud-arrow-up mr-2"></i> 儲存配置至雲端</button>
+                
+                <div class="grid grid-cols-2 gap-2 mt-2">
                     <button onclick="clearSeats()" class="bg-red-50 text-red-600 border border-red-200 py-2 rounded text-sm hover:bg-red-100">清空座位</button>
                     <button onclick="fillSeatsInOrder()" class="bg-gray-50 text-gray-600 border border-gray-200 py-2 rounded text-sm hover:bg-gray-100">依序入座</button>
                 </div>
@@ -203,7 +156,6 @@
     </aside>
 
     <main class="flex-1 flex flex-col h-screen overflow-hidden bg-gray-100 relative">
-        <!-- 頂部工具列 -->
         <header class="bg-white shadow-sm p-3 px-4 md:px-6 flex flex-wrap justify-between items-center z-20 relative no-print shrink-0">
             <div class="flex items-center gap-2 mb-2 md:mb-0">
                 <div class="flex items-center bg-gray-100 rounded-lg p-1">
@@ -222,21 +174,15 @@
             </div>
         </header>
 
-        <!-- 座位顯示區：移除 justify-center 避免頂部裁切，改用子元素 margin:auto -->
         <div id="print-area" class="flex-1 overflow-auto p-4 md:p-8 flex flex-col items-start relative z-0 w-full">
             <div id="classroom-area" class="relative bg-white shadow-2xl rounded-xl p-8 border border-gray-200">
-                
-                <!-- 座位網格 -->
                 <div id="seat-grid" class="grid gap-4 mx-auto mb-4"></div>
-                
-                <!-- 講台 (移除 mt-auto，改為固定小間距) -->
                 <div class="w-full flex justify-center mt-6 teacher-desk-container">
                     <div class="teacher-desk w-64 h-16 bg-amber-200 rounded-lg border-2 border-amber-300 flex items-center justify-center shadow-md relative">
                         <span class="teacher-desk-text font-bold text-amber-800 text-lg">講台 / 黑板</span>
                         <div class="absolute -top-2 w-full flex justify-center"><div class="w-4 h-4 bg-amber-300 rotate-45"></div></div>
                     </div>
                 </div>
-                
                 <div id="info-header" class="text-center mt-8">
                     <h3 class="text-xl font-medium text-gray-600 mb-1 tracking-wide"><span id="displaySchoolYear"></span> 學年度 <span id="displaySemester">上學期</span></h3>
                     <h2 class="text-3xl font-bold text-gray-800 tracking-wide" id="displayClassName">班級座位表</h2>
@@ -248,32 +194,175 @@
     </main>
 
 <script>
+    // =========================================================
+    // 請將下方字串換成您剛才部署的 Google Apps Script 網址
+    // =========================================================
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwyE9vKA6BP0E6clmjbYf5EiSmNr6_9VDRGWQsCrF8tQwD2S6Ls8KLsss8iRHEzM_iffg/exec"; 
+
     let students = [];
     let gridRows = 6;
     let gridCols = 6;
     let currentMapping = [];
     let draggedIndex = null;
     let debugConstraints = { fixed: [], separate: [], pair: [] };
-    let isPortrait = true; // 預設直式
+    let isPortrait = true; 
+    let cloudData = {}; // 存放從雲端抓取的所有班級資料
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
         const today = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
         document.getElementById('timestamp').textContent = today;
         updateGridDimensions();
         
-        const updateHeader = () => {
+        const updateHeaderEvent = () => {
             document.getElementById('displaySchoolYear').textContent = document.getElementById('schoolYear').value || '___';
             document.getElementById('displaySemester').textContent = document.getElementById('semester').value;
         };
-        document.getElementById('schoolYear').addEventListener('input', updateHeader);
-        document.getElementById('semester').addEventListener('change', updateHeader);
-        updateHeader();
-
+        document.getElementById('schoolYear').addEventListener('input', updateHeaderEvent);
+        document.getElementById('semester').addEventListener('change', updateHeaderEvent);
+        
         document.getElementById('className').addEventListener('input', (e) => { document.getElementById('displayClassName').textContent = e.target.value || '班級座位表'; });
         document.getElementById('teacherName').addEventListener('input', (e) => { document.getElementById('displayTeacherName').textContent = '導師：' + e.target.value; });
         document.getElementById('studentInput').addEventListener('input', parseStudentInput);
         document.getElementById('excelInput').addEventListener('change', handleExcelUpload);
+
+        updateHeader();
+
+        // 載入雲端資料
+        await fetchAllDataFromCloud();
     });
+
+    // --- 雲端同步功能 ---
+    async function fetchAllDataFromCloud() {
+        if(GAS_URL === "在此貼上您的Web_App_URL") return;
+        
+        const overlay = document.getElementById('loadingOverlay');
+        overlay.classList.remove('hidden');
+        
+        try {
+            const res = await fetch(GAS_URL);
+            cloudData = await res.json();
+            updateCloudDropdown();
+        } catch (error) {
+            console.error("讀取雲端資料失敗", error);
+        } finally {
+            overlay.classList.add('hidden');
+        }
+    }
+
+    function updateCloudDropdown() {
+        const select = document.getElementById('cloudClassSelect');
+        select.innerHTML = '<option value="">-- 請選擇班級紀錄 --</option>';
+        for (let className in cloudData) {
+            select.innerHTML += `<option value="${className}">${className}</option>`;
+        }
+    }
+
+    function loadFromCloud(className) {
+        if (!className || !cloudData[className]) return;
+        
+        const data = cloudData[className];
+        
+        // 恢復表單資料
+        document.getElementById('schoolYear').value = data.schoolYear || '';
+        document.getElementById('semester').value = data.semester || '上學期';
+        document.getElementById('className').value = className;
+        document.getElementById('teacherName').value = data.teacherName || '';
+        
+        document.getElementById('rowsInput').value = data.gridRows || 6;
+        document.getElementById('colsInput').value = data.gridCols || 6;
+        
+        document.getElementById('fixedFrontInput').value = data.fixedFront || '';
+        document.getElementById('separateInput').value = data.separate || '';
+        document.getElementById('pairInput').value = data.pair || '';
+        
+        // 恢復記憶體資料
+        students = data.students || [];
+        currentMapping = data.currentMapping || [];
+        gridRows = data.gridRows || 6;
+        gridCols = data.gridCols || 6;
+        
+        document.getElementById('studentInput').value = students.map(s => `${s.id} ${s.name}`).join('\n');
+        document.getElementById('studentCount').textContent = students.length;
+        
+        updateHeader();
+        
+        // 渲染畫面
+        const grid = document.getElementById('seat-grid');
+        grid.style.gridTemplateColumns = `repeat(${gridCols}, minmax(60px, 1fr))`;
+        renderSeats();
+        
+        Swal.fire({
+            title: '載入成功',
+            text: `已從雲端載入 ${className} 的座位表`,
+            icon: 'success',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    }
+
+    async function saveToCloud() {
+        if(GAS_URL === "在此貼上您的Web_App_URL") {
+            Swal.fire('設定錯誤', '請先在程式碼內填入您的 GAS_URL 網址！', 'error');
+            return;
+        }
+
+        const className = document.getElementById('className').value.trim();
+        if(!className) {
+            Swal.fire('資料不完整', '「班級名稱」為必填欄位，請先填寫！', 'warning');
+            return;
+        }
+
+        const payload = {
+            className: className,
+            data: {
+                schoolYear: document.getElementById('schoolYear').value,
+                semester: document.getElementById('semester').value,
+                teacherName: document.getElementById('teacherName').value,
+                gridRows: gridRows,
+                gridCols: gridCols,
+                fixedFront: document.getElementById('fixedFrontInput').value,
+                separate: document.getElementById('separateInput').value,
+                pair: document.getElementById('pairInput').value,
+                students: students,
+                currentMapping: currentMapping
+            }
+        };
+
+        const btn = document.getElementById('btnSaveCloud');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> 正在同步至雲端...';
+        btn.disabled = true;
+
+        try {
+            await fetch(GAS_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            cloudData[className] = payload.data;
+            updateCloudDropdown();
+            document.getElementById('cloudClassSelect').value = className; // 自動選取剛存好的
+            
+            Swal.fire({
+                title: '同步成功！',
+                text: `${className} 的座位表已安全備份至雲端。`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } catch (error) {
+            console.error("儲存失敗", error);
+            Swal.fire('同步失敗', '無法連接到雲端，請檢查網路連線。', 'error');
+        } finally {
+            btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up mr-2"></i> 儲存配置至雲端';
+            btn.disabled = false;
+        }
+    }
+
+    function updateHeader() {
+        document.getElementById('displaySchoolYear').textContent = document.getElementById('schoolYear').value || '___';
+        document.getElementById('displaySemester').textContent = document.getElementById('semester').value;
+        document.getElementById('displayClassName').textContent = document.getElementById('className').value || '班級座位表';
+        document.getElementById('displayTeacherName').textContent = '導師：' + document.getElementById('teacherName').value;
+    }
 
     // --- 列印方向切換與畫面模擬 ---
     function toggleOrientation() {
@@ -284,33 +373,20 @@
         const area = document.getElementById('classroom-area');
 
         if (isPortrait) {
-            // 列印設定
             styleEl.innerHTML = `@media print { @page { size: A4 portrait; margin: 5mm; } }`;
-            // 按鈕更新
-            btnText.textContent = "直式預覽";
-            btnIcon.className = "fa-solid fa-file-invoice mr-1";
-            // 畫面模擬 (直式 A4 比例)
-            area.style.maxWidth = '210mm';
-            area.style.minHeight = '297mm';
+            btnText.textContent = "直式預覽"; btnIcon.className = "fa-solid fa-file-invoice mr-1";
+            area.style.maxWidth = '210mm'; area.style.minHeight = '297mm';
         } else {
-            // 列印設定
             styleEl.innerHTML = `@media print { @page { size: A4 landscape; margin: 5mm; } }`;
-            // 按鈕更新
-            btnText.textContent = "橫式預覽";
-            btnIcon.className = "fa-solid fa-file-invoice-dollar mr-1";
-            // 畫面模擬 (橫式 A4 比例)
-            area.style.maxWidth = '297mm';
-            area.style.minHeight = '210mm';
+            btnText.textContent = "橫式預覽"; btnIcon.className = "fa-solid fa-file-invoice-dollar mr-1";
+            area.style.maxWidth = '297mm'; area.style.minHeight = '210mm';
         }
     }
 
     // --- 資料處理 ---
     function cleanId(id) {
         if (!id) return "";
-        return String(id)
-            .replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) { return String.fromCharCode(s.charCodeAt(0) - 0xFEE0); })
-            .replace(/\s+/g, "")
-            .trim();
+        return String(id).replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) { return String.fromCharCode(s.charCodeAt(0) - 0xFEE0); }).replace(/\s+/g, "").trim();
     }
 
     function parseStudentInput() {
@@ -320,11 +396,8 @@
             const trimmed = line.trim();
             if (trimmed) {
                 const match = trimmed.match(/^(\d+)[.\s\t]+(.+)$/);
-                if (match) {
-                    students.push({ id: cleanId(match[1]), name: match[2].trim() });
-                } else {
-                    students.push({ id: "", name: trimmed });
-                }
+                if (match) students.push({ id: cleanId(match[1]), name: match[2].trim() });
+                else students.push({ id: "", name: trimmed });
             }
         });
         document.getElementById('studentCount').textContent = students.length;
@@ -342,8 +415,7 @@
             for(let i = 0; i < json.length; i++) {
                 const row = json[i];
                 if(row.length >= 2) {
-                    let id = row[0];
-                    let name = row[1];
+                    let id = row[0]; let name = row[1];
                     if ((id || id === 0) && name) {
                         newStudents.push({ id: cleanId(id), name: String(name).trim() });
                     }
@@ -374,6 +446,7 @@
         const grid = document.getElementById('seat-grid');
         grid.innerHTML = '';
         const totalSeats = gridRows * gridCols;
+        
         if (currentMapping.length !== totalSeats) {
              const newMapping = new Array(totalSeats).fill(null);
              for(let i=0; i<Math.min(currentMapping.length, totalSeats); i++) newMapping[i] = currentMapping[i];
@@ -388,22 +461,16 @@
             if (student) {
                 const sid = cleanId(student.id);
                 if (debugConstraints.fixed.includes(sid)) {
-                    seatDiv.classList.add('is-fixed');
-                    seatDiv.title = "固定第一排";
+                    seatDiv.classList.add('is-fixed'); seatDiv.title = "固定第一排";
                 } else if (debugConstraints.separate.some(g => g.includes(sid))) {
-                    seatDiv.classList.add('is-separate'); // 互斥/聊天 -> 紅色
-                    seatDiv.title = "互斥/聊天";
+                    seatDiv.classList.add('is-separate'); seatDiv.title = "互斥/聊天";
                 } else if (debugConstraints.pair.some(g => g.includes(sid))) {
-                    seatDiv.classList.add('is-pair');
-                    seatDiv.title = "綁定座位";
+                    seatDiv.classList.add('is-pair'); seatDiv.title = "綁定座位";
                 } else {
-                    seatDiv.style.backgroundColor = '#f0f9ff';
-                    seatDiv.style.borderStyle = 'solid';
-                    seatDiv.style.borderColor = '#93c5fd';
+                    seatDiv.style.backgroundColor = '#f0f9ff'; seatDiv.style.borderStyle = 'solid'; seatDiv.style.borderColor = '#93c5fd';
                 }
             } else {
-                seatDiv.style.borderStyle = 'dashed';
-                seatDiv.style.borderColor = '#d1d5db';
+                seatDiv.style.borderStyle = 'dashed'; seatDiv.style.borderColor = '#d1d5db';
             }
 
             seatDiv.draggable = true;
@@ -413,7 +480,6 @@
             seatDiv.addEventListener('drop', handleDrop);
             
             if (student) {
-                // 修正：調整字體大小，姓名更清楚
                 seatDiv.innerHTML = `<div class="seat-content text-center w-full overflow-hidden">
                     <div class="text-[10px] md:text-xs font-bold text-gray-500 mb-0.5 leading-none">${student.id}</div>
                     <div class="text-lg md:text-2xl font-bold text-gray-800 truncate px-0.5 leading-tight">${student.name}</div>
@@ -434,9 +500,7 @@
     function parseConstraintGroups(str) {
         if (!str) return [];
         const normalized = str.replace(/；/g, ';').replace(/。/g, ';');
-        return normalized.split(';').map(group => {
-            return parseConstraintString(group);
-        }).filter(g => g.length > 1);
+        return normalized.split(';').map(group => parseConstraintString(group)).filter(g => g.length > 1);
     }
 
     function generateRandomSeat() {
@@ -459,17 +523,12 @@
 
         fixedIds.forEach(fid => {
             const s = students.find(stu => cleanId(stu.id) === fid);
-            if (s && !placedIds.has(fid)) {
-                fixedStudents.push(s);
-                placedIds.add(fid);
-            }
+            if (s && !placedIds.has(fid)) { fixedStudents.push(s); placedIds.add(fid); }
         });
 
         students.forEach(s => {
             const sid = cleanId(s.id);
-            if (!placedIds.has(sid)) {
-                otherStudents.push(s);
-            }
+            if (!placedIds.has(sid)) otherStudents.push(s);
         });
 
         shuffleArray(otherStudents);
@@ -485,20 +544,10 @@
 
         fixedStudents.forEach(s => {
             let slot = -1;
-            for(let idx of frontRowIndices) {
-                if (!filledIndices.has(idx)) { slot = idx; break; }
-            }
-            if (slot === -1) {
-                for(let idx of secondRowIndices) {
-                    if (!filledIndices.has(idx)) { slot = idx; break; }
-                }
-            }
-            if (slot !== -1) {
-                layout[slot] = s;
-                filledIndices.add(slot);
-            } else {
-                otherStudents.push(s); 
-            }
+            for(let idx of frontRowIndices) { if (!filledIndices.has(idx)) { slot = idx; break; } }
+            if (slot === -1) { for(let idx of secondRowIndices) { if (!filledIndices.has(idx)) { slot = idx; break; } } }
+            if (slot !== -1) { layout[slot] = s; filledIndices.add(slot); } 
+            else { otherStudents.push(s); }
         });
 
         let remainingSlots = [];
@@ -510,10 +559,7 @@
         }
         
         otherStudents.forEach((s, i) => {
-            if (i < remainingSlots.length) {
-                layout[remainingSlots[i]] = s;
-                filledIndices.add(remainingSlots[i]);
-            }
+            if (i < remainingSlots.length) { layout[remainingSlots[i]] = s; filledIndices.add(remainingSlots[i]); }
         });
 
         let bestLayout = [...layout];
@@ -527,8 +573,7 @@
             let idx2 = Math.floor(Math.random() * totalSeats);
             if (idx1 === idx2) continue;
 
-            const p1 = bestLayout[idx1];
-            const p2 = bestLayout[idx2];
+            const p1 = bestLayout[idx1]; const p2 = bestLayout[idx2];
             const isP1Fixed = p1 && fixedIds.includes(cleanId(p1.id));
             const isP2Fixed = p2 && fixedIds.includes(cleanId(p2.id));
             const isFront1 = Math.floor(idx1 / gridCols) === gridRows - 1;
@@ -538,16 +583,11 @@
             if (isP2Fixed && !isFront1) continue;
 
             let tempLayout = [...bestLayout];
-            tempLayout[idx1] = p2;
-            tempLayout[idx2] = p1;
+            tempLayout[idx1] = p2; tempLayout[idx2] = p1;
 
             let newScore = calculateScore(tempLayout, separateGroups, pairGroups);
-            if (newScore < minConflicts) {
-                minConflicts = newScore;
-                bestLayout = tempLayout;
-            } else if (newScore === minConflicts && Math.random() > 0.5) {
-                bestLayout = tempLayout;
-            }
+            if (newScore < minConflicts) { minConflicts = newScore; bestLayout = tempLayout; } 
+            else if (newScore === minConflicts && Math.random() > 0.5) { bestLayout = tempLayout; }
         }
 
         currentMapping = bestLayout;
@@ -557,26 +597,18 @@
         if (minConflicts > 0) {
             Swal.fire('分配完成 (仍有部分衝突)', report + `\n仍有 ${minConflicts} 個互斥/綁定條件無法完美滿足。`, 'warning');
         } else {
-            Swal.fire({
-                title: '完美分配！',
-                text: report + ' 所有條件均已滿足。',
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
-            });
+            Swal.fire({ title: '完美分配！', text: report + ' 所有條件均已滿足。', icon: 'success', timer: 2000, showConfirmButton: false });
         }
     }
 
     function calculateScore(layout, separateGroups, pairGroups) {
-        let score = 0;
-        let posMap = {};
+        let score = 0; let posMap = {};
         layout.forEach((s, idx) => { if(s) posMap[cleanId(s.id)] = idx; });
 
         separateGroups.forEach(group => {
             for(let i=0; i<group.length; i++) {
                 for(let j=i+1; j<group.length; j++) {
-                    let p1 = posMap[group[i]];
-                    let p2 = posMap[group[j]];
+                    let p1 = posMap[group[i]]; let p2 = posMap[group[j]];
                     if(p1!==undefined && p2!==undefined && isAdjacent(p1, p2)) score += 10;
                 }
             }
@@ -585,8 +617,7 @@
         pairGroups.forEach(group => {
             for(let i=0; i<group.length; i++) {
                 for(let j=i+1; j<group.length; j++) {
-                    let p1 = posMap[group[i]];
-                    let p2 = posMap[group[j]];
+                    let p1 = posMap[group[i]]; let p2 = posMap[group[j]];
                     if(p1!==undefined && p2!==undefined && !isAdjacent(p1, p2)) score += 10;
                 }
             }
@@ -595,12 +626,9 @@
     }
 
     function isAdjacent(idx1, idx2) {
-        let r1 = Math.floor(idx1 / gridCols);
-        let c1 = idx1 % gridCols;
-        let r2 = Math.floor(idx2 / gridCols);
-        let c2 = idx2 % gridCols;
-        if (r1 === r2 && Math.abs(c1 - c2) === 1) return true;
-        return false;
+        let r1 = Math.floor(idx1 / gridCols); let c1 = idx1 % gridCols;
+        let r2 = Math.floor(idx2 / gridCols); let c2 = idx2 % gridCols;
+        return (r1 === r2 && Math.abs(c1 - c2) === 1);
     }
 
     function handleDragStart(e) { draggedIndex = parseInt(this.dataset.index); this.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
@@ -670,65 +698,40 @@
 
     function exportToExcel() {
         const data = [];
-        
-        // 1. Basic Info
         const year = document.getElementById('schoolYear').value || '';
         const sem = document.getElementById('semester').value;
         const className = document.getElementById('className').value || '班級座位表';
         const teacherName = document.getElementById('teacherName').value;
         const rows = document.getElementById('rowsInput').value;
         const cols = document.getElementById('colsInput').value;
-
-        // Determine View
         const isStudentView = document.getElementById('classroom-area').classList.contains('student-view-mode');
         const viewName = isStudentView ? "學生視角 (黑板在上方)" : "導師視角 (黑板在下方)";
 
         data.push(["--- 基本資訊 ---"]);
-        if (year) {
-            data.push([`學年度：`, `${year} ${sem}`]);
-        } else {
-            data.push([`學期：`, `${sem}`]);
-        }
-        data.push([`班級：`, className]);
-        data.push([`導師：`, teacherName]);
-        data.push([`視角：`, viewName]);
-        data.push([`格局：`, `${rows} 排 x ${cols} 列`]);
-        data.push([]); 
-
-        // 2. Constraints
-        const fixedVal = document.getElementById('fixedFrontInput').value;
-        const separateVal = document.getElementById('separateInput').value;
-        const pairVal = document.getElementById('pairInput').value;
+        if (year) { data.push([`學年度：`, `${year} ${sem}`]); } else { data.push([`學期：`, `${sem}`]); }
+        data.push([`班級：`, className]); data.push([`導師：`, teacherName]); data.push([`視角：`, viewName]); data.push([`格局：`, `${rows} 排 x ${cols} 列`]); data.push([]); 
 
         data.push(["--- 排位限制設定 ---"]);
-        data.push([`固定第一排：`, fixedVal || "無"]);
-        data.push([`互斥 (不可坐一起)：`, separateVal || "無"]);
-        data.push([`綁定 (必須坐一起)：`, pairVal || "無"]);
-        data.push([]); 
+        data.push([`固定第一排：`, document.getElementById('fixedFrontInput').value || "無"]);
+        data.push([`互斥 (不可坐一起)：`, document.getElementById('separateInput').value || "無"]);
+        data.push([`綁定 (必須坐一起)：`, document.getElementById('pairInput').value || "無"]); data.push([]); 
 
-        // 3. Seat Map
         data.push(["--- 座位表配置 ---"]);
-        
         if (isStudentView) {
             data.push([`[[ 黑板 / 講台 ]]`]);
-            // Student View: visual top is grid bottom (last row). 
-            // Visual left is grid right (last col).
             for(let r = gridRows - 1; r >= 0; r--) {
                 let rowData = [];
                 for(let c = gridCols - 1; c >= 0; c--) {
-                    const idx = r * gridCols + c;
-                    const s = currentMapping[idx];
+                    const idx = r * gridCols + c; const s = currentMapping[idx];
                     rowData.push(s ? `${s.id} ${s.name}` : "空位");
                 }
                 data.push(rowData);
             }
         } else {
-            // Teacher View: visual top is grid top (row 0).
             for(let r = 0; r < gridRows; r++) {
                 let rowData = [];
                 for(let c = 0; c < gridCols; c++) {
-                    const idx = r * gridCols + c;
-                    const s = currentMapping[idx];
+                    const idx = r * gridCols + c; const s = currentMapping[idx];
                     rowData.push(s ? `${s.id} ${s.name}` : "空位");
                 }
                 data.push(rowData);
@@ -739,74 +742,55 @@
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "座位表");
-        
-        const filename = className !== '班級座位表' ? `座位表_${className}.xlsx` : `座位表.xlsx`;
-        XLSX.writeFile(wb, filename);
+        XLSX.writeFile(wb, className !== '班級座位表' ? `座位表_${className}.xlsx` : `座位表.xlsx`);
     }
 
     function printAsMarkdown() {
         const title = document.getElementById('className').value || '班級座位表';
         const container = document.getElementById('markdown-print-view');
-        
         const schoolYear = document.getElementById('schoolYear').value || '';
         const semester = document.getElementById('semester').value;
         const teacherName = document.getElementById('teacherName').value || '';
         const timeStr = document.getElementById('timestamp').textContent;
         const isStudentView = document.getElementById('classroom-area').classList.contains('student-view-mode');
 
-        let html = `<div class="md-h1">${title}</div>`;
-        html += `<div class="md-meta">`;
-        if(schoolYear) html += `<strong>${schoolYear} 學年度 ${semester}</strong><br>`;
-        else html += `<strong>${semester}</strong><br>`;
-        html += `導師：${teacherName || '__________'}<br>`; 
-        html += `<span style="font-size: 10pt; color: #666;">製表日期：${timeStr}</span>`;
-        html += `<br><span style="font-size: 9pt; color: #888;">(${isStudentView ? '學生視角：黑板在上方' : '導師視角：黑板在下方'})</span>`;
-        html += `</div>`;
+        let html = `<div class="md-h1">${title}</div><div class="md-meta">`;
+        if(schoolYear) html += `<strong>${schoolYear} 學年度 ${semester}</strong><br>`; else html += `<strong>${semester}</strong><br>`;
+        html += `導師：${teacherName || '__________'}<br><span style="font-size: 10pt; color: #666;">製表日期：${timeStr}</span>`;
+        html += `<br><span style="font-size: 9pt; color: #888;">(${isStudentView ? '學生視角：黑板在上方' : '導師視角：黑板在下方'})</span></div>`;
 
         const deskHtml = `<div class="md-desk" style="margin-top: ${isStudentView ? '0' : '5mm'}; margin-bottom: ${isStudentView ? '5mm' : '0'};">講台 / 黑板</div>`;
-
-        if(isStudentView) {
-            html += deskHtml;
-        }
+        if(isStudentView) html += deskHtml;
 
         html += `<table class="md-table">`;
-        
         const pageHeightAvailableMM = isPortrait ? 220 : 150; 
         const rowHeightMM = Math.max(15, Math.floor(pageHeightAvailableMM / gridRows));
         
         if (isStudentView) {
-            // Student View: Grid Bottom-Right -> Visual Top-Left
             for(let r=gridRows-1; r>=0; r--) {
                 html += `<tr>`;
                 for(let c=gridCols-1; c>=0; c--) {
                     const s = currentMapping[r*gridCols+c];
                     html += `<td style="height:${rowHeightMM}mm">`;
-                    if(s) html += `<span class="md-seat-id">${s.id}</span><span class="md-seat-name">${s.name}</span>`;
-                    else html += `<span class="md-empty">空位</span>`;
+                    if(s) html += `<span class="md-seat-id">${s.id}</span><span class="md-seat-name">${s.name}</span>`; else html += `<span class="md-empty">空位</span>`;
                     html += `</td>`;
                 }
                 html += `</tr>`;
             }
         } else {
-            // Teacher View: Normal
             for(let r=0; r<gridRows; r++) {
                 html += `<tr>`;
                 for(let c=0; c<gridCols; c++) {
                     const s = currentMapping[r*gridCols+c];
                     html += `<td style="height:${rowHeightMM}mm">`;
-                    if(s) html += `<span class="md-seat-id">${s.id}</span><span class="md-seat-name">${s.name}</span>`;
-                    else html += `<span class="md-empty">空位</span>`;
+                    if(s) html += `<span class="md-seat-id">${s.id}</span><span class="md-seat-name">${s.name}</span>`; else html += `<span class="md-empty">空位</span>`;
                     html += `</td>`;
                 }
                 html += `</tr>`;
             }
         }
-        
         html += `</table>`;
-        
-        if(!isStudentView) {
-            html += deskHtml;
-        }
+        if(!isStudentView) html += deskHtml;
         
         container.innerHTML = html;
         window.print();
