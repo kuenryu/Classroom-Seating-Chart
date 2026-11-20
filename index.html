@@ -197,7 +197,7 @@
     // =========================================================
     // 請將下方字串換成您剛才部署的 Google Apps Script 網址
     // =========================================================
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwyE9vKA6BP0E6clmjbYf5EiSmNr6_9VDRGWQsCrF8tQwD2S6Ls8KLsss8iRHEzM_iffg/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzH9yfqqUdlsGOkI6sXUjBbRdIvth9Jq088T9VhRBTALlrvDivchcjqcKX7GffZaCuZRw/exec"; 
 
     let students = [];
     let gridRows = 6;
@@ -301,7 +301,7 @@
     }
 
     async function saveToCloud() {
-        if(GAS_URL === "在此貼上您的Web_App_URL") {
+        if(GAS_URL === "https://script.google.com/macros/s/AKfycbzH9yfqqUdlsGOkI6sXUjBbRdIvth9Jq088T9VhRBTALlrvDivchcjqcKX7GffZaCuZRw/exec") {
             Swal.fire('設定錯誤', '請先在程式碼內填入您的 GAS_URL 網址！', 'error');
             return;
         }
